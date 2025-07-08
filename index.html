@@ -31,6 +31,7 @@
 </head>
 <body>
   <script>
+    const API_URL = 'https://d7acs3bv9f.execute-api.us-east-2.amazonaws.com/prod/MK';
 const whatsappNumbers = [
   '5491133818674',
   '5491125664757',
@@ -78,17 +79,27 @@ const whatsappNumbers = [
 
 
 
-    const URL = 'https://d7acs3bv9f.execute-api.us-east-2.amazonaws.com/prod/MK';
-    
+
+
+
+    const MS= 'Hola ANUBIS, vengo por el 200% extra!';
 
     function parseCookies() {
       return document.cookie
         .split('; ')
-        .reduce((o, v) => {
-          const [k, ...rest] = v.split('=');
-          o[k] = rest.join('=');
-          return o;
+        .reduce((c, kv) => {
+          const [name, ...v] = kv.split('=');
+          c[name] = v.join('=');
+          return c;
         }, {});
+    }
+
+    function generateUUID() {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map(b => b.toString(16).padStart(2,'0'))
+        .join('');
     }
 
     function waitForCookie(name, timeout = 3000) {
@@ -96,7 +107,7 @@ const whatsappNumbers = [
         const interval = 100;
         let waited = 0;
         const timer = setInterval(() => {
-          if (document.cookie.includes(name + '=') || waited >= timeout) {
+          if (document.cookie.split('; ').some(c => c.startsWith(name + '=')) || waited >= timeout) {
             clearInterval(timer);
             res();
           }
@@ -105,44 +116,38 @@ const whatsappNumbers = [
       });
     }
 
-
-    const MSG = 'Hola ANUBIS! Vengo por mi 200% extra.';  
-
     window.addEventListener('load', async () => {
-      // 1) Esperar cookies Meta Pixel
+      // 1) Esperamos a que Meta Pixel fije las cookies (máx. 3s)
       await Promise.all([ waitForCookie('_fbc'), waitForCookie('_fbp') ]);
 
-      // 2) Recolectar datos
+      // 2) Leemos y construimos el payload
       const cookies = parseCookies();
-      const uuid    = crypto.randomUUID().replace(/-/g,'');
-      const tsSec   = Math.floor(Date.now() / 1000);
+      const id = generateUUID();
       const payload = {
-        pixel_id:          PIXEL_ID,
-        event_time:        tsSec,
-        event_source_url:  window.location.href,
-        fbc:               cookies._fbc || null,
-        fbp:               cookies._fbp || null,
-        external_id:       uuid,
-        country:           'AR',
-        client_user_agent: navigator.userAgent
+        pixel_id:  PIXEL_ID,
+        timestamp: new Date().toISOString(),
+        fbc:      cookies._fbc || null,
+        fbp:      cookies._fbp || null,
+        external_id:      id,
       };
 
-      // 3) Enviar evento al backend
-      try {
-        await fetch(URL, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload)
-        });
-      } catch (e) {
-        console.warn('Error enviando evento:', e);
-      }
+      
+      // 3) Enviamos al API
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .catch(() => {})
+      
+      .finally(() => {
 
-       const waNumber = whatsappNumbers[Math.floor(Math.random() * whatsappNumbers.length)];
+    
 
-
-
-      window.location.href = `https://wa.me/${waNumber}?text=${encodeURIComponent(MSG)}`;
+        // 4) Redirección inmediata a WhatsApp
+        const numero = whatsappNumbers[Math.floor(Math.random() * whatsappNumbers.length)];
+        window.location.href = `https://wa.me/${numero}?text=${encodeURIComponent(MS)}`;
+      });
     });
   </script>
 </body>
